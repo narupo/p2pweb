@@ -6,6 +6,8 @@ from p2pweb.settings import HTPP_VERSION
 from p2pweb.exceptions import InvalidReceiveData, InvalidPath
 from p2pweb.validations import validate_path
 from p2pweb.utils import pop_head_slash
+from p2pweb.markdownparser import MarkdownParser
+from p2pweb.resource import Resource
 import os
 import time
 from threading import Thread
@@ -25,7 +27,7 @@ class WebBrowser(gui.Frame):
 
         gui.Frame(self).pack(side=gui.TOP, pady=4)
 
-        self.text = gui.Text(self)
+        self.text = gui.Text(self, bd=0)
         self.text.pack(side=gui.TOP, expand=True, fill=gui.BOTH)
 
     def goto(self):
@@ -39,10 +41,15 @@ class WebBrowser(gui.Frame):
             self.text.insert(gui.END, 'Error: Connection Refused.')
             return
 
-        print(htpp_response)
-        content = htpp_response.content_to_string()
-        self.text.delete('1.0', gui.END)
-        self.text.insert(gui.END, content)
+        scontent = htpp_response.content_to_string()
+        assert(scontent)
+
+        if htpp_response.content_type == 'text/markdown':
+            self.text.delete('1.0', gui.END)
+            MarkdownParser(self.text).parse(scontent)
+        else:
+            self.text.delete('1.0', gui.END)
+            self.text.insert(gui.END, scontent)
 
 
 class HtppResponse:
@@ -50,17 +57,37 @@ class HtppResponse:
         self,
         version=None,
         status=None,
+        content_type=None,
         content=None,
     ):
         self.version: str = version
         self.status: str = status
+        self.content_type: str = content_type
         self.content: bytes = content
 
     def __str__(self):
         return f'<HtppResponse version={self.version} status={self.status} content={self.content.decode()} />'
 
     def content_to_string(self):
-        return self.content.decode()
+        if self.content:
+            return self.content.decode()
+        return None
+
+    def to_bytes(self):
+        dst = bytearray()
+        dst += self.version.encode()
+        dst += b' '
+        dst += self.status.encode()
+        dst += b'\r\n'
+
+        if self.content_type:
+            dst += b'Content-Type: ' + self.content_type.encode() + b'\r\n'
+
+        if self.content:
+            dst += b'\r\n'
+            dst += self.content
+
+        return dst
 
 
 class WebEngine:
@@ -91,20 +118,23 @@ class WebEngine:
         while True:
             print('recv...')
             try:
-                self.recv_client_sock(client_sock)
+                self.recv_and_send_client_sock(client_sock)
             except ConnectionAbortedError as e:
                 print(e)
                 break
+
+            client_sock.close()
+            break
         print('end recv_client_worker')
 
-    def recv_client_sock(self, client_sock):
+    def recv_and_send_client_sock(self, client_sock):
         try:
             data = client_sock.recv(1024)
         except ConnectionAbortedError as e:
             raise e
 
         try:
-            result: bytes = self.parse_receive_data(data)
+            htpp_response: bytes = self.parse_receive_data(data)
         except InvalidReceiveData as e:
             print(e)
             client_sock.send(f'{HTPP_VERSION} 500\r\n'.encode())
@@ -112,29 +142,28 @@ class WebEngine:
             print(e)
             client_sock.send(f'{HTPP_VERSION} 500\r\n'.encode())
         else:
-            response = b''
-            response += HTPP_VERSION.encode()
-            if result:
-                response += b' 200\r\n\r\n' + result
-            else:
-                response += b' 200\r\n'
-            client_sock.send(response)
-            print('send', response)
+            data = htpp_response.to_bytes()
+            client_sock.send(data)
+            print('send', data)
 
     def parse_receive_data(self, data: bytes):
-        data = data.decode()
-        lines = data.replace('\r\n', '\n').split('\n')
+        lines = data.replace(b'\r\n', b'\n').split(b'\n')
 
         for line in lines:
             print('line', line)
-            if line.startswith('GET'):
-                toks = line.split(' ')
+            if line.startswith(b'GET'):
+                toks = line.split(b' ')
                 if len(toks) < 2:
                     raise InvalidReceiveData('invalid GET method')
-                path = toks[1]
-                result = self.process_method_get(path)
-                print('result', result)
-                return result
+                path = toks[1].decode()
+                return self.process_method_get(path)
+
+    def get_content_type(self, path):
+        _, ext = os.path.splitext(path)
+        if ext == '.md':
+            return 'text/markdown'
+        else:
+            return 'text/html'
 
     def process_method_get(self, path: str):
         # htpp://localhost:8888/index.md
@@ -150,7 +179,16 @@ class WebEngine:
 
         with open(path, 'rb') as fin:
             print('open', path)
-            return fin.read()
+            content = fin.read()
+
+        content_type = self.get_content_type(path)
+
+        return HtppResponse(
+            version=HTPP_VERSION,
+            status='200',
+            content_type=content_type,
+            content=content,
+        )
 
     def get(self, address: str):
         address = address.strip()
@@ -176,51 +214,45 @@ class WebEngine:
             return self.parse_response_data(response)
 
     def parse_response_data(self, response: bytes):
-        m = 10
-        version = bytearray()
-        status = bytearray()
-        content = bytearray()
-        digits = [ord('0'), ord('1'), ord('2'), ord('3'), ord('4'),
-                  ord('5'), ord('6'), ord('7'), ord('8'), ord('9')]
+        m = 0
+        res = bytearray(response)
+        ln = 0
+        lines = res.split(b'\r\n')
+        version = None
+        status = None
+        content = None
+        content_type = None
 
-        for c in response:
-            print(c)
+        print('response', response)
+        for line in lines:
             if m == 0:
-                if c == ord('H'):
+                if line == b'':
                     m = 10
-                    version.append(c)
+                elif line.startswith(b'HTPP'):
+                    toks = line.split(b' ')
+                    version = toks[0].decode()
+                    status = toks[1].decode()
+                elif line.startswith(b'Content-Type'):
+                    toks = line.split(b':')
+                    content_type = toks[1].strip().decode()
             elif m == 10:
-                if c == ord(' '):
-                    m = 20
-                else:
-                    version.append(c)
-            elif m == 20:
-                if c in digits:
-                    status.append(c)
-                elif c == ord('\r'):
-                    m = 30
-            elif m == 30:
-                if c == ord('\r'):
-                    m = 40
-            elif m == 40:
-                if c == ord('\n'):
-                    m = 50
-            elif m == 50:
-                content.append(c)
+                content = res[ln:]
+                break
+            ln += len(line) + 2
 
-        print(version, status, content)
+        print(version, status, content, content_type)
         return HtppResponse(
-            version=version.decode(),
-            status=status.decode(),
+            version=version,
+            status=status,
             content=content,
+            content_type=content_type,
         )
 
 
 class Peer(gui.RootWindow):
     def __init__(self, addr_port: str = None):
-        self.init_env(addr_port)
-
         super().__init__()
+        self.init_env(addr_port)
         self.title('Peer')
         self.geometry('400x300')
 
@@ -249,3 +281,5 @@ class Peer(gui.RootWindow):
             public_dir=public_dir,
             addr_port=addr_port,
         )
+
+        Resource.get_instance().load()

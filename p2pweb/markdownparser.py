@@ -11,8 +11,10 @@ from p2pweb import gui
 class MarkdownParser:
     def __init__(
         self,
+        context,
         tk_text_widget,
     ):
+        self.context = context
         self.text = tk_text_widget
         self.text.tag_config('red', foreground='red')
         self.text.tag_config('italic', font=font.markdown_italic)
@@ -147,6 +149,7 @@ class MarkdownParser:
                 text=text,
                 font=font.markdown_underline,
                 foreground=Color.LINK_FG,
+                background=Color.LINK_BG,
                 cursor='hand2',
             )
             label.bind('<Button-1>', lambda ev: self.jump_to_link(label, url))
@@ -157,7 +160,8 @@ class MarkdownParser:
 
     def jump_to_link(self, label, url):
         label.config(foreground=Color.LINK_VISITED_FG)
-        webbrowser.open_new(url.strip())
+        self.context.dispatch('jump_to_link', url=url)
+        # webbrowser.open_new(url.strip())
 
     def parse_image(self):
         m = 0

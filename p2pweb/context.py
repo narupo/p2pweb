@@ -8,6 +8,7 @@ class Context:
         app_dir=None,
         public_dir=None,
         web_engine=None,
+        web_cache=None,
         addr_port=None,
     ):
         self.event_manager = EventManager()
@@ -15,6 +16,7 @@ class Context:
         self.app_dir = app_dir
         self.public_dir = public_dir
         self.web_engine = web_engine
+        self.web_cache = web_cache
 
         if isinstance(addr_port, str):
             addr, port = addr_port.split(':')

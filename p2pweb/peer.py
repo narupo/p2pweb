@@ -12,6 +12,8 @@ import os
 import time
 from threading import Thread
 import re
+from urllib.parse import urlparse
+import webbrowser
 
 
 class WebBrowser(gui.Frame):
@@ -27,14 +29,27 @@ class WebBrowser(gui.Frame):
 
         gui.Frame(self).pack(side=gui.TOP, pady=4)
 
-        self.text = gui.Text(self, bd=0)
+        self.text = gui.ScrolledText(self, bd=0, height=10, state=gui.DISABLED)
         self.text.pack(side=gui.TOP, expand=True, fill=gui.BOTH)
 
-    def goto(self):
-        address = self.address_bar.get()
+        self.status_bar = gui.Label(self, text='', anchor=gui.W)
+        self.status_bar.pack(side=gui.TOP, fill=gui.X)
 
+    def fix_address_bar(self):
+        url = self.address_bar.get()
+        if not url.startswith('htpp://'):
+            url = 'htpp://' + url
+        self.address_bar.delete(0, gui.END)
+        self.address_bar.insert(gui.END, url)
+
+    def goto(self):
+        self.fix_address_bar()
+        url = self.address_bar.get()
+        self.load_from_url(url)
+
+    def load_from_url(self, url):
         try:
-            htpp_response = self.context.web_engine.get(address)
+            htpp_response = self.context.web_engine.get(url)
         except ConnectionRefusedError as e:
             print(e)
             self.text.delete('1.0', gui.END)
@@ -44,12 +59,17 @@ class WebBrowser(gui.Frame):
         scontent = htpp_response.content_to_string()
         assert(scontent)
 
+        self.text.config(state=gui.NORMAL)
         if htpp_response.content_type == 'text/markdown':
             self.text.delete('1.0', gui.END)
-            MarkdownParser(self.text).parse(scontent)
+            MarkdownParser(self.context, self.text).parse(scontent)
         else:
             self.text.delete('1.0', gui.END)
             self.text.insert(gui.END, scontent)
+
+        self.address_bar.delete(0, gui.END)
+        self.address_bar.insert(gui.END, url)
+        self.text.config(state=gui.DISABLED)
 
 
 class HtppResponse:
@@ -103,6 +123,7 @@ class WebEngine:
         self.recv_sock.bind(addr)
         print('bind', addr)
         self.recv_sock.listen(10)
+        self.context.web_browser.status_bar.config(text=f'Launch on {addr[0]}:{addr[1]}')
 
         self.recv_worker_thread = Thread(target=self.recv_worker, daemon=True)
         self.recv_worker_thread.start()
@@ -190,14 +211,12 @@ class WebEngine:
             content=content,
         )
 
-    def get(self, address: str):
-        address = address.strip()
-        print('address', address)
-        m = re.match(r'htpp://(?P<addr>[0-9|a-z|A-Z|\_\-\.]+):?(?P<port>[0-9]+)?(?P<path>[0-9|a-z|A-Z|\_\-\/\.]*)', address)
-        addr = m.group('addr')
-        port = m.group('port') or settings.HTPP_PORT
-        port = int(port)
-        path = m.group('path')
+    def get(self, url: str):
+        url = url.strip()
+        o = urlparse(url)
+        addr = o.hostname 
+        port = o.port or settings.HTPP_PORT
+        path = o.path
         if path is None:
             path = '/'
         print('get', addr, port, path)
@@ -253,18 +272,20 @@ class Peer(gui.RootWindow):
     def __init__(self, addr_port: str = None):
         super().__init__()
         self.init_env(addr_port)
-        self.title('Peer')
+        self.title('PW Browser')
         self.geometry('400x300')
 
         self.main_frame = gui.Frame(self)
         self.main_frame.pack(expand=True, fill=gui.BOTH, pady=10, padx=10)
 
         self.web_engine = WebEngine(self.context)
-        self.web_engine.start()
         self.context.web_engine = self.web_engine
 
         self.web_browser = WebBrowser(self.main_frame, self.context)
         self.web_browser.pack(expand=True, fill=gui.BOTH)
+        self.context.web_browser = self.web_browser
+
+        self.web_engine.start()
 
     def init_env(self, addr_port=None):
         app_dir = os.path.abspath('.')
@@ -276,10 +297,33 @@ class Peer(gui.RootWindow):
         print('public_dir', public_dir)
         print('addr_port', addr_port)
 
+        Resource.get_instance().load()
+
         self.context = Context(
             app_dir=app_dir,
             public_dir=public_dir,
             addr_port=addr_port,
         )
+        self.context.add_listener('jump_to_link', self.jump_to_link)
 
-        Resource.get_instance().load()
+    def jump_to_link(self, url):
+        o = urlparse(url)
+        is_path_only = not len(o.scheme) and o.hostname is None and o.path
+        is_absolute_path = url[0] == '/'
+        is_relative_path = url[0] != '/'
+
+        # print(o, o.scheme, o.hostname, o.path, is_path_only, is_absolute_path, is_relative_path)
+        if is_path_only:
+            path = url
+            o = urlparse(self.web_browser.address_bar.get())
+            port = ':' + str(o.port) if str(o.port) else ''
+            if is_absolute_path:
+                url = o.scheme + '://' + o.hostname + port + path
+            elif is_relative_path:
+                url = o.scheme + '://' + o.hostname + port + '/'.join(o.path.split('/')[:-1]) + '/' + path
+            self.web_browser.load_from_url(url)
+        else:
+            if o.scheme == 'http':
+                webbrowser.open_new(url.strip())
+            elif o.scheme == 'htpp':
+                self.web_browser.load_from_url(url)

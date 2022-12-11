@@ -19,28 +19,28 @@ def init():
     global markdown_p, markdown_italic, markdown_strong
     global markdown_strong_italic, markdown_underline, markdown_overstrike
 
-    family = basic_family = actual['family']
+    family = basic_family = 'Helvetica'
     weight = actual['weight']
     slant = actual['slant']
-    markdown_p = (family, 12, weight, slant)
-    markdown_italic = (family, 12, weight, 'italic')
-    markdown_strong = (family, 12, 'bold', slant)
-    markdown_strong_italic = (family, 12, 'bold', 'italic')
-    markdown_strong_italic = (family, 12, 'bold', 'italic')
-    markdown_underline = (family, 12, weight, slant, 'underline')
-    markdown_overstrike = (family, 12, weight, slant, 'normal', 'overstrike')
+    markdown_p = (family, 16, weight, slant)
+    markdown_italic = (family, 16, weight, 'italic')
+    markdown_strong = (family, 16, 'bold', slant)
+    markdown_strong_italic = (family, 16, 'bold', 'italic')
+    markdown_strong_italic = (family, 16, 'bold', 'italic')
+    markdown_underline = (family, 16, weight, slant, 'underline')
+    markdown_overstrike = (family, 16, weight, slant, 'normal', 'overstrike')
 
 
 def get_headline_font(nsharp):
     if nsharp == 1:
-        return (basic_family, 24, 'bold')
+        return (basic_family, 28, 'bold')
     elif nsharp == 2:
-        return (basic_family, 22, 'bold')
+        return (basic_family, 26, 'bold')
     elif nsharp == 3:
-        return (basic_family, 20, 'bold')
+        return (basic_family, 24, 'bold')
     elif nsharp == 4:
-        return (basic_family, 18, 'bold')
+        return (basic_family, 22, 'bold')
     elif nsharp == 5:
-        return (basic_family, 16, 'bold')
+        return (basic_family, 20, 'bold')
     else:
-        return (basic_family, 14, 'bold')
+        return (basic_family, 18, 'bold')

@@ -1,21 +1,22 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter import *
+from tkinter.scrolledtext import ScrolledText as TkScrolledText
 
 
 class RootWindow(tk.Tk):
     pass
 
 
-class Frame(tk.Frame):
+class Frame(ttk.Frame):
     pass
 
 
-class Label(tk.Label):
+class Label(ttk.Label):
     pass
 
 
-class Entry(tk.Entry):
+class Entry(ttk.Entry):
     pass
 
 
@@ -31,48 +32,48 @@ class Combobox(ttk.Combobox):
     pass
 
 
-class PanedWindow(tk.PanedWindow):
+class PanedWindow(ttk.PanedWindow):
     pass
 
 
-class Button(tk.Button):
+class Button(ttk.Button):
+    pass
+
+
+class ScrolledText(TkScrolledText):
     pass
 
 
 class EntryButton(tk.Frame):
     def __init__(self, master, button_text, button_command):
         super().__init__(master)
-        self.address_entry = Entry(self)
-        self.address_entry.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        self.entry = Entry(self)
+        self.entry.pack(side=tk.LEFT, expand=True, fill=tk.X)
 
         Frame(self).pack(side=tk.LEFT, padx=4)
 
-        self.goto_btn = Button(
+        self.btn = Button(
             self,
             text=button_text,
             command=button_command,
+            cursor='hand2',
         )
-        self.goto_btn.pack(side=tk.LEFT)
+        self.btn.pack(side=tk.LEFT)
 
     def get(self):
-        return self.address_entry.get()
+        return self.entry.get()
+
+    def insert(self, *args, **kwargs):
+        self.entry.insert(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        self.entry.delete(*args, **kwargs)
 
 
-class AddressBar(tk.Frame):
+class AddressBar(EntryButton):
     def __init__(self, master, goto_command):
-        super().__init__(master)
-        self.address_entry = Entry(self)
-        self.address_entry.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
-        Frame(self).pack(side=tk.LEFT, padx=4)
-
-        self.goto_btn = Button(
-            self,
-            text='Goto',
-            command=goto_command,
+        super().__init__(
+            master,
+            button_text='Goto',
+            button_command=goto_command,            
         )
-        self.goto_btn.pack(side=tk.LEFT)
-
-    def get(self):
-        return self.address_entry.get()
-

@@ -5,13 +5,11 @@ from p2pweb import settings
 from p2pweb.settings import HTPP_VERSION
 from p2pweb.exceptions import InvalidReceiveData, InvalidPath
 from p2pweb.validations import validate_path
-from p2pweb.utils import pop_head_slash
+from p2pweb.utils import pop_head_slash, fix_url
 from p2pweb.markdownparser import MarkdownParser
 from p2pweb.resource import Resource
 import os
-import time
 from threading import Thread
-import re
 from urllib.parse import urlparse
 import webbrowser
 
@@ -37,8 +35,7 @@ class WebBrowser(gui.Frame):
 
     def fix_address_bar(self):
         url = self.address_bar.get()
-        if not url.startswith('htpp://'):
-            url = 'htpp://' + url
+        url = fix_url(url)
         self.address_bar.delete(0, gui.END)
         self.address_bar.insert(gui.END, url)
 
@@ -55,9 +52,20 @@ class WebBrowser(gui.Frame):
             self.text.delete('1.0', gui.END)
             self.text.insert(gui.END, 'Error: Connection Refused.')
             return
+        except BaseException as e:
+            print(e)
+            self.text.delete('1.0', gui.END)
+            self.text.insert(gui.END, f'Error: {e}')
+            return
 
-        scontent = htpp_response.content_to_string()
-        assert(scontent)
+        self.address_bar.delete(0, gui.END)
+        self.address_bar.insert(gui.END, url)
+
+        if htpp_response.status == '200':
+            scontent = htpp_response.content_to_string()
+            assert(scontent)
+        else:
+            scontent = htpp_response.status_to_string()
 
         self.text.config(state=gui.NORMAL)
         if htpp_response.content_type == 'text/markdown':
@@ -66,9 +74,6 @@ class WebBrowser(gui.Frame):
         else:
             self.text.delete('1.0', gui.END)
             self.text.insert(gui.END, scontent)
-
-        self.address_bar.delete(0, gui.END)
-        self.address_bar.insert(gui.END, url)
         self.text.config(state=gui.DISABLED)
 
 
@@ -85,6 +90,27 @@ class HtppResponse:
         self.content_type: str = content_type
         self.content: bytes = content
 
+    @staticmethod
+    def create_500():
+        return HtppResponse(
+            version=HTPP_VERSION,
+            status='500',
+        )
+
+    @staticmethod
+    def create_404():
+        return HtppResponse(
+            version=HTPP_VERSION,
+            status='404',
+        )
+
+    @staticmethod
+    def create_403():
+        return HtppResponse(
+            version=HTPP_VERSION,
+            status='403',
+        )
+
     def __str__(self):
         return f'<HtppResponse version={self.version} status={self.status} content={self.content.decode()} />'
 
@@ -92,6 +118,12 @@ class HtppResponse:
         if self.content:
             return self.content.decode()
         return None
+
+    def status_to_string(self):
+        if self.status == '200':
+            return f'{self.status} OK'
+        else:
+            return f'{self.status} Error'
 
     def to_bytes(self):
         dst = bytearray()
@@ -188,15 +220,18 @@ class WebEngine:
 
     def process_method_get(self, path: str):
         # htpp://localhost:8888/index.md
-        path = os.path.normpath(path)
         validate_path(path)
         path = pop_head_slash(path)
         path = os.path.join(self.context.public_dir, path)
         print('public_dir', self.context.public_dir)
         print('join path', path)
 
-        if 'public' not in path or not os.path.exists(path):
-            return None
+        if 'public' not in path:
+            return HtppResponse.create_500()
+        elif not os.path.exists(path):
+            return HtppResponse.create_404()
+        elif os.path.isdir(path):
+            return HtppResponse.create_403()
 
         with open(path, 'rb') as fin:
             print('open', path)
@@ -222,15 +257,17 @@ class WebEngine:
         print('get', addr, port, path)
 
         sok = sock.socket(sock.AF_INET, sock.SOCK_STREAM)
-        sok.connect((addr, port))
+        try:
+            sok.connect((addr, port))
+        except BaseException as e:
+            raise e
 
-        while True:
-            request = b'GET '
-            request += path.encode()
-            sok.send(request)
-            response = sok.recv(1024)
-            sok.close()
-            return self.parse_response_data(response)
+        request = b'GET '
+        request += path.encode()
+        sok.send(request)
+        response = sok.recv(1024)
+        sok.close()
+        return self.parse_response_data(response)
 
     def parse_response_data(self, response: bytes):
         m = 0
@@ -273,7 +310,7 @@ class Peer(gui.RootWindow):
         super().__init__()
         self.init_env(addr_port)
         self.title('PW Browser')
-        self.geometry('400x300')
+        self.geometry('500x500')
 
         self.main_frame = gui.Frame(self)
         self.main_frame.pack(expand=True, fill=gui.BOTH, pady=10, padx=10)

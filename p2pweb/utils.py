@@ -2,6 +2,13 @@ from urllib.parse import urlparse
 import os
 
 
+def is_invalid_url(url):
+    o = urlparse(url)
+    ret = not len(o.scheme) and o.hostname is None and not len(o.path)
+    print(ret, o.scheme, o.hostname, o.path)
+    return ret
+
+
 def pop_head_slash(path):
     if not len(path):
         return path
@@ -20,7 +27,7 @@ def fix_url(url):
     path = o.path
     if path:
         path = os.path.normpath(o.path).replace('\\', '/')
-    port = ':' + str(o.port) if str(o.port) else ''
+    port = ':' + str(o.port) if o.port is not None else ''
     url = o.scheme + '://' + o.hostname + port + path
     return url
 
@@ -35,7 +42,7 @@ def solve_url(context, url):
     if is_path_only:
         path = url
         o = urlparse(context.web_browser.address_bar.get())
-        port = ':' + str(o.port) if str(o.port) else ''
+        port = ':' + str(o.port) if o.port is not None else ''
         if is_absolute_path:
             url = o.scheme + '://' + o.hostname + port + path
         elif is_relative_path:

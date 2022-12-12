@@ -5,7 +5,7 @@ from p2pweb import settings
 from p2pweb.settings import HTPP_VERSION
 from p2pweb.exceptions import InvalidReceiveData, InvalidPath
 from p2pweb.validations import validate_path
-from p2pweb.utils import pop_head_slash, fix_url, solve_url
+from p2pweb.utils import pop_head_slash, fix_url, solve_url, is_invalid_url
 from p2pweb.markdownparser import MarkdownParser
 from p2pweb.resource import Resource
 from p2pweb.network import P2PNetworkManager
@@ -44,6 +44,7 @@ class WebBrowser(gui.Frame):
             goto_command=self.goto,
         )
         self.address_bar.pack(side=gui.TOP, fill=gui.X)
+        self.address_bar.bind('<Return>', lambda ev: self.goto())
 
         gui.Frame(self.right_frame).pack(side=gui.TOP, pady=4)
 
@@ -73,6 +74,8 @@ class WebBrowser(gui.Frame):
     def goto(self):
         self.fix_address_bar()
         url = self.address_bar.get()
+        if is_invalid_url(url):
+            return
         self.load_from_url(url)
 
     def load_from_url(self, url):

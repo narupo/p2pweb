@@ -22,13 +22,13 @@ def init():
     family = basic_family = 'Helvetica'
     weight = actual['weight']
     slant = actual['slant']
-    markdown_p = (family, 12, weight, slant)
-    markdown_italic = (family, 12, weight, 'italic')
-    markdown_strong = (family, 12, 'bold', slant)
-    markdown_strong_italic = (family, 12, 'bold', 'italic')
-    markdown_strong_italic = (family, 12, 'bold', 'italic')
-    markdown_underline = (family, 12, weight, slant, 'underline')
-    markdown_overstrike = (family, 12, weight, slant, 'normal', 'overstrike')
+    markdown_p = (family, 11, weight, slant)
+    markdown_italic = (family, 11, weight, 'italic')
+    markdown_strong = (family, 11, 'bold', slant)
+    markdown_strong_italic = (family, 11, 'bold', 'italic')
+    markdown_strong_italic = (family, 11, 'bold', 'italic')
+    markdown_underline = (family, 11, weight, slant, 'underline')
+    markdown_overstrike = (family, 11, weight, slant, 'normal', 'overstrike')
 
 
 def get_headline_font(nsharp):

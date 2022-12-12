@@ -69,6 +69,9 @@ class EntryButton(tk.Frame):
     def delete(self, *args, **kwargs):
         self.entry.delete(*args, **kwargs)
 
+    def bind(self, *args, **kwargs):
+        self.entry.bind(*args, **kwargs)
+
 
 class AddressBar(EntryButton):
     def __init__(self, master, goto_command):

@@ -162,6 +162,7 @@ class MarkdownParser:
             )
 
     def jump_to_link(self, label, url):
+        print('jump_to_link')
         label.config(foreground=Color.LINK_VISITED_FG)
         self.context.dispatch('jump_to_link', url=url)
         # webbrowser.open_new(url.strip())

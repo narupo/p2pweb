@@ -231,7 +231,9 @@ class WebEngine:
             client_sock.send(f'{HTPP_VERSION} 500\r\n'.encode())
         else:
             data = htpp_response.to_bytes()
+            # print('recv_and_send_client_sock: send...', data)
             client_sock.send(data)
+            print('recv_and_send_client_sock: send done')
             # print('send', data)
 
     def parse_receive_data(self, data: bytes):
@@ -247,6 +249,7 @@ class WebEngine:
                     raise InvalidReceiveData('invalid GET method')
                 path = toks[1].decode()
                 return self.process_method_get(path)
+        print('end parse_receive_data')
 
     def get_content_type(self, path):
         _, ext = os.path.splitext(path)
@@ -287,6 +290,7 @@ class WebEngine:
 
     def process_method_get_side(self):
         content = self.context.p2p_network.side_nodes_to_bytes()
+        print('process_method_get_side:', content)
         return HtppResponse(
             version=HTPP_VERSION,
             status='200',
@@ -301,7 +305,6 @@ class WebEngine:
         path = o.path
         if path is None:
             path = '/'
-        print('get', addr, port, path)
 
         sok = sock.socket(sock.AF_INET, sock.SOCK_STREAM)
         try:
@@ -320,10 +323,10 @@ class WebEngine:
             response += data
             if len(data) < nrecv:
                 break
-            print('hige')
 
         sok.close()
-        return self.parse_response_data(response)
+        ret = self.parse_response_data(response)
+        return ret
 
     def parse_response_data(self, response: bytes):
         m = 0
@@ -352,7 +355,7 @@ class WebEngine:
                 break
             ln += len(line) + 2
 
-        print(version, status, content, content_type)
+        # print(version, status, content, content_type)
         return HtppResponse(
             version=version,
             status=status,

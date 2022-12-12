@@ -9,6 +9,7 @@ from p2pweb.utils import pop_head_slash, fix_url, solve_url
 from p2pweb.markdownparser import MarkdownParser
 from p2pweb.resource import Resource
 from p2pweb.network import P2PNetworkManager
+from p2pweb import font
 import os
 from threading import Thread
 from urllib.parse import urlparse
@@ -415,6 +416,7 @@ class Peer(gui.RootWindow):
         print('addr_port', addr_port)
 
         Resource.get_instance().load()
+        font.init()
 
         self.context = Context(
             app_dir=app_dir,

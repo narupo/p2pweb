@@ -18,6 +18,7 @@ class MarkdownParser:
         self.context = context
         self.text = tk_text_widget
         self.text.tag_config('red', foreground='red')
+        self.text.tag_config('p', font=font.markdown_p)
         self.text.tag_config('italic', font=font.markdown_italic)
         self.text.tag_config('strong', font=font.markdown_strong)
         self.text.tag_config('strong_italic', font=font.markdown_strong_italic)
@@ -246,7 +247,7 @@ class MarkdownParser:
                     self.text.image_create(tk.END, image=image)
                     self.text.insert(tk.END, '\n')
                     if len(alt):
-                        self.text.insert(tk.END, alt + '\n')
+                        self.text.insert(tk.END, alt + '\n', 'p')
 
     def look_at_newline(self, target):
         i = self.i + 1
@@ -603,7 +604,7 @@ class MarkdownParser:
         def insert_line():
             nonlocal line
             if len(line):
-                self.text.insert(tk.END, line)
+                self.text.insert(tk.END, line, 'p')
                 line = ''
 
         while self.i < self.clen:
@@ -642,7 +643,7 @@ class MarkdownParser:
             self.text.tag_config('color', foreground=foreground)
             self.text.insert(tk.END, f'{line}', 'color')
         else:
-            self.text.insert(tk.END, f'{line}')
+            self.text.insert(tk.END, f'{line}', 'p')
 
     def parse_code(self):
         m = 0

@@ -22,24 +22,24 @@ def init():
     family = basic_family = 'Helvetica'
     weight = actual['weight']
     slant = actual['slant']
-    markdown_p = (family, 16, weight, slant)
-    markdown_italic = (family, 16, weight, 'italic')
-    markdown_strong = (family, 16, 'bold', slant)
-    markdown_strong_italic = (family, 16, 'bold', 'italic')
-    markdown_strong_italic = (family, 16, 'bold', 'italic')
-    markdown_underline = (family, 16, weight, slant, 'underline')
-    markdown_overstrike = (family, 16, weight, slant, 'normal', 'overstrike')
+    markdown_p = (family, 12, weight, slant)
+    markdown_italic = (family, 12, weight, 'italic')
+    markdown_strong = (family, 12, 'bold', slant)
+    markdown_strong_italic = (family, 12, 'bold', 'italic')
+    markdown_strong_italic = (family, 12, 'bold', 'italic')
+    markdown_underline = (family, 12, weight, slant, 'underline')
+    markdown_overstrike = (family, 12, weight, slant, 'normal', 'overstrike')
 
 
 def get_headline_font(nsharp):
     if nsharp == 1:
-        return (basic_family, 28, 'bold')
-    elif nsharp == 2:
-        return (basic_family, 26, 'bold')
-    elif nsharp == 3:
         return (basic_family, 24, 'bold')
-    elif nsharp == 4:
+    elif nsharp == 2:
+        return (basic_family, 23, 'bold')
+    elif nsharp == 3:
         return (basic_family, 22, 'bold')
+    elif nsharp == 4:
+        return (basic_family, 21, 'bold')
     elif nsharp == 5:
         return (basic_family, 20, 'bold')
     else:

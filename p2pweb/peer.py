@@ -8,6 +8,7 @@ from p2pweb.validations import validate_path
 from p2pweb.utils import pop_head_slash, fix_url, solve_url
 from p2pweb.markdownparser import MarkdownParser
 from p2pweb.resource import Resource
+from p2pweb.network import P2PNetworkManager
 import os
 from threading import Thread
 from urllib.parse import urlparse
@@ -19,19 +20,48 @@ class WebBrowser(gui.Frame):
         super().__init__(master)
         self.context = context
 
+        self.top_frame = gui.Frame(self)
+        self.top_frame.pack(side=gui.TOP, expand=True, fill=gui.BOTH)
+
+        self.left_frame = gui.Frame(self.top_frame)
+        self.left_frame.pack(side=gui.LEFT, fill=gui.Y)
+
+        gui.Frame(self.top_frame).pack(side=gui.LEFT, padx=4)
+
+        self.right_frame = gui.Frame(self.top_frame)
+        self.right_frame.pack(side=gui.LEFT, expand=True, fill=gui.BOTH)
+
+        self.bottom_frame = gui.Frame(self)
+        self.bottom_frame.pack(side=gui.TOP, fill=gui.X)
+
+        self.address_listbox = gui.ScrolledListbox(self.left_frame)
+        self.address_listbox.pack(expand=True, fill=gui.BOTH)
+        self.address_listbox.bind('<<ListboxSelect>>', self.address_select)
+
         self.address_bar = gui.AddressBar(
-            self,
+            self.right_frame,
             goto_command=self.goto,
         )
         self.address_bar.pack(side=gui.TOP, fill=gui.X)
 
-        gui.Frame(self).pack(side=gui.TOP, pady=4)
+        gui.Frame(self.right_frame).pack(side=gui.TOP, pady=4)
 
-        self.text = gui.ScrolledText(self, bd=0, height=10, state=gui.DISABLED)
+        self.text = gui.ScrolledText(self.right_frame, bd=0, height=10, state=gui.DISABLED)
         self.text.pack(side=gui.TOP, expand=True, fill=gui.BOTH)
 
-        self.status_bar = gui.Label(self, text='', anchor=gui.W)
-        self.status_bar.pack(side=gui.TOP, fill=gui.X)
+        self.status_bar = gui.Label(self.bottom_frame, text='', anchor=gui.W)
+        self.status_bar.pack(side=gui.BOTTOM, fill=gui.X)
+
+    def address_select(self, ev):
+        sel = self.address_listbox.curselection()
+        addr = self.address_listbox.get(sel[0])
+        url = 'htpp://' + addr
+        self.address_bar.delete(0, gui.END)
+        self.address_bar.insert(gui.END, url)
+        self.goto()
+
+    def add_address(self, addr):
+        self.address_listbox.insert(gui.END, addr)
 
     def fix_address_bar(self):
         url = self.address_bar.get()
@@ -64,6 +94,7 @@ class WebBrowser(gui.Frame):
         if htpp_response.status == '200':
             scontent = htpp_response.content_to_string()
             assert(scontent)
+            self.context.p2p_network.register_url(url)
         else:
             scontent = htpp_response.status_to_string()
 
@@ -197,14 +228,16 @@ class WebEngine:
         else:
             data = htpp_response.to_bytes()
             client_sock.send(data)
-            print('send', data)
+            # print('send', data)
 
     def parse_receive_data(self, data: bytes):
         lines = data.replace(b'\r\n', b'\n').split(b'\n')
 
         for line in lines:
             print('line', line)
-            if line.startswith(b'GET'):
+            if line.startswith(b'GETSIDE'):
+                return self.process_method_get_side()
+            elif line.startswith(b'GET'):
                 toks = line.split(b' ')
                 if len(toks) < 2:
                     raise InvalidReceiveData('invalid GET method')
@@ -222,27 +255,37 @@ class WebEngine:
         # htpp://localhost:8888/index.md
         validate_path(path)
         path = pop_head_slash(path)
-        path = os.path.join(self.context.public_dir, path)
+        if path == '':
+            path = 'index.md'
+        pub_path = os.path.join(self.context.public_dir, path)
         print('public_dir', self.context.public_dir)
         print('join path', path)
 
-        if 'public' not in path:
+        if 'public' not in pub_path:
             return HtppResponse.create_500()
-        elif not os.path.exists(path):
+        elif not os.path.exists(pub_path):
             return HtppResponse.create_404()
-        elif os.path.isdir(path):
+        elif os.path.isdir(pub_path):
             return HtppResponse.create_403()
 
-        with open(path, 'rb') as fin:
-            print('open', path)
+        with open(pub_path, 'rb') as fin:
+            print('open', pub_path)
             content = fin.read()
 
-        content_type = self.get_content_type(path)
+        content_type = self.get_content_type(pub_path)
 
         return HtppResponse(
             version=HTPP_VERSION,
             status='200',
             content_type=content_type,
+            content=content,
+        )
+
+    def process_method_get_side(self):
+        content = self.context.p2p_network.side_nodes_to_bytes()
+        return HtppResponse(
+            version=HTPP_VERSION,
+            status='200',
             content=content,
         )
 
@@ -288,7 +331,7 @@ class WebEngine:
         content = None
         content_type = None
 
-        print('response', response)
+        # print('response', response)
         for line in lines:
             if m == 0:
                 if line == b'':
@@ -313,6 +356,30 @@ class WebEngine:
             content_type=content_type,
         )
 
+    def send_request_and_recv(self, method: str, url: str):
+        o = urlparse(url)
+        port = o.port if o.port is not None else settings.HTPP_PORT
+        sok = sock.socket(sock.AF_INET, sock.SOCK_STREAM)
+        sok.connect((o.hostname, port))
+
+        data = f'{method}\r\n'.encode()
+        sok.send(data)
+
+        nrecv = 1024
+        response = b''
+        while True:
+            res = sok.recv(nrecv)
+            response += res
+            if len(res) < nrecv:
+                break
+
+        return response
+
+    def get_side_nodes(self, addr):
+        url = f'htpp://{addr}'
+        response = self.send_request_and_recv('GETSIDE\r\n', url)
+        return self.parse_response_data(response)
+
 
 class Peer(gui.RootWindow):
     def __init__(self, addr_port: str = None):
@@ -327,11 +394,15 @@ class Peer(gui.RootWindow):
         self.web_engine = WebEngine(self.context)
         self.context.web_engine = self.web_engine
 
+        self.p2p_network = P2PNetworkManager(self.context)
+        self.context.p2p_network = self.p2p_network
+
         self.web_browser = WebBrowser(self.main_frame, self.context)
         self.web_browser.pack(expand=True, fill=gui.BOTH)
         self.context.web_browser = self.web_browser
 
         self.web_engine.start()
+        self.p2p_network.start()
 
     def init_env(self, addr_port=None):
         app_dir = os.path.abspath('.')

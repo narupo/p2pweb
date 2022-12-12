@@ -77,3 +77,37 @@ class AddressBar(EntryButton):
             button_text='Goto',
             button_command=goto_command,            
         )
+
+
+class ScrolledListbox(Listbox):
+    def __init__(self, master=None, **kw):
+        name = kw.get("name")
+        if name is None:
+            name = ""
+        self.frame = Frame(master, name=name)
+        self.frame.rowconfigure(0, weight=1)
+        self.frame.columnconfigure(0, weight=1)
+        self.vbar = tk.Scrollbar(self.frame)
+        self.vbar.grid(row=0, column=1, sticky="NWS")
+        self.hbar = tk.Scrollbar(self.frame, orient=tk.HORIZONTAL)
+        self.hbar.grid(row=1, column=0, sticky="SWE")
+
+        kw.update({'yscrollcommand': self.vbar.set})
+        kw.update({'xscrollcommand': self.hbar.set})
+        Listbox.__init__(self, self.frame, **kw)
+        self.grid(row=0, column=0, sticky=tk.NSEW)
+        self.vbar['command'] = self.yview
+        self.hbar['command'] = self.xview
+
+        text_meths = vars(Listbox).keys()
+        methods = vars(tk.Pack).keys() | vars(tk.Grid).keys() | vars(tk.Place).keys()
+        methods = methods.difference(text_meths)
+        for m in methods:
+            if m[0] != '_' and m != 'config' and m != 'configure':
+                setattr(self, m, getattr(self.frame, m))
+    
+    def forget_hbar(self):
+        self.hbar.grid_forget()
+
+    def __str__(self):
+        return str(self.frame)

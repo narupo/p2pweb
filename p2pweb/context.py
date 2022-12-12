@@ -10,6 +10,7 @@ class Context:
         web_engine=None,
         web_cache=None,
         addr_port=None,
+        p2p_network=None,
     ):
         self.event_manager = EventManager()
         self.prev_context = prev_context
@@ -17,6 +18,7 @@ class Context:
         self.public_dir = public_dir
         self.web_engine = web_engine
         self.web_cache = web_cache
+        self.p2p_network = p2p_network
 
         if isinstance(addr_port, str):
             addr, port = addr_port.split(':')

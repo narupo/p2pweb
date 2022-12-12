@@ -6,6 +6,8 @@ World!
 [Go to about page (abs)](/about.md)
 [Go to about page (rel)](about.md)
 
+![image](sample.png)
+
 * hige
 * hoge
 * **fuge**

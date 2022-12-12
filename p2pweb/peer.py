@@ -5,7 +5,7 @@ from p2pweb import settings
 from p2pweb.settings import HTPP_VERSION
 from p2pweb.exceptions import InvalidReceiveData, InvalidPath
 from p2pweb.validations import validate_path
-from p2pweb.utils import pop_head_slash, fix_url
+from p2pweb.utils import pop_head_slash, fix_url, solve_url
 from p2pweb.markdownparser import MarkdownParser
 from p2pweb.resource import Resource
 import os
@@ -247,7 +247,7 @@ class WebEngine:
         )
 
     def get(self, url: str):
-        url = url.strip()
+        url = solve_url(self.context, url)
         o = urlparse(url)
         addr = o.hostname 
         port = o.port or settings.HTPP_PORT
@@ -265,7 +265,16 @@ class WebEngine:
         request = b'GET '
         request += path.encode()
         sok.send(request)
-        response = sok.recv(1024)
+        
+        response = b''
+        nrecv = 1024
+        while True:
+            data = sok.recv(nrecv)
+            response += data
+            if len(data) < nrecv:
+                break
+            print('hige')
+
         sok.close()
         return self.parse_response_data(response)
 
@@ -344,23 +353,9 @@ class Peer(gui.RootWindow):
         self.context.add_listener('jump_to_link', self.jump_to_link)
 
     def jump_to_link(self, url):
+        url = solve_url(self.context, url)
         o = urlparse(url)
-        is_path_only = not len(o.scheme) and o.hostname is None and o.path
-        is_absolute_path = url[0] == '/'
-        is_relative_path = url[0] != '/'
-
-        # print(o, o.scheme, o.hostname, o.path, is_path_only, is_absolute_path, is_relative_path)
-        if is_path_only:
-            path = url
-            o = urlparse(self.web_browser.address_bar.get())
-            port = ':' + str(o.port) if str(o.port) else ''
-            if is_absolute_path:
-                url = o.scheme + '://' + o.hostname + port + path
-            elif is_relative_path:
-                url = o.scheme + '://' + o.hostname + port + '/'.join(o.path.split('/')[:-1]) + '/' + path
+        if o.scheme == 'http':
+            webbrowser.open_new(url.strip())
+        elif o.scheme == 'htpp':
             self.web_browser.load_from_url(url)
-        else:
-            if o.scheme == 'http':
-                webbrowser.open_new(url.strip())
-            elif o.scheme == 'htpp':
-                self.web_browser.load_from_url(url)

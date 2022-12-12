@@ -11,6 +11,7 @@ class Resource:
         return _instance
 
     def load(self):
+        self.markdown_images = []
         self.html_list_normal = tk.PhotoImage(file='resource/html_list_normal.png')
         self.html_list_white = tk.PhotoImage(file='resource/html_list_white.png')
         self.html_checkbox = tk.PhotoImage(file='resource/html_checkbox.png')

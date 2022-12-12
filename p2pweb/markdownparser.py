@@ -1,5 +1,6 @@
 import tkinter as tk
 from PIL import Image, ImageTk
+import io
 import os
 import webbrowser
 from p2pweb import font
@@ -30,6 +31,7 @@ class MarkdownParser:
         except BaseException as e:
             print(e)
             self.text.insert(tk.END, 'マークダウンのパースに失敗しました。\n', 'red')
+            raise e
 
     def _parse(self, content):
         self.content = content.replace('\r\n', '\n').rstrip() + '\n'
@@ -217,14 +219,17 @@ class MarkdownParser:
             self.i += 1
 
         if len(path):
-            if not os.path.exists(path):
-                self.text.insert(tk.END, '画像が見つかりません。\n', 'red')
+            try:
+                htpp_response = self.context.web_engine.get(path)
+            except BaseException as e:
+                self.text.insert(tk.END, str(e) + '\n', 'red')
+                raise e
             else:
-                resource = Resource.get_instance()
                 try:
-                    image = Image.open(path)
-                except BaseException:
+                    image = Image.open(io.BytesIO(htpp_response.content))
+                except BaseException as e:
                     self.text.insert(tk.END, '画像が開けませんでした。\n', 'red')
+                    raise e
                 else:
                     if len(size):
                         toks = size.split(' ')
@@ -236,6 +241,7 @@ class MarkdownParser:
                             else:
                                 image.thumbnail((w, h))
                     image = ImageTk.PhotoImage(image)
+                    resource = Resource.get_instance()
                     resource.add_markdown_image(image)
                     self.text.image_create(tk.END, image=image)
                     self.text.insert(tk.END, '\n')
